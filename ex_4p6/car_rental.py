@@ -1,8 +1,10 @@
 """
-TODO
+Implementation of Jack' car rental problem from Sutton & Barto 2nd ed.
+This implementation is naive and quite slow.
 """
 
 import numpy as np
+
 
 _GAMMA = 0.9
 _MAX_CARS = 20
@@ -23,13 +25,9 @@ def policy_iteration(V, policy):
 
         # DEBUG
         print_policy(policy_new)
-        print_values(V_new)
 
         if policy_stable:
             break
-
-        # DEBUG
-        np.save('p1.npy', policy_new)
 
         policy_old = policy_new.copy()
         V_old = V_new.copy()
@@ -82,7 +80,6 @@ def legal_action(s, a):
            (s[0] - a <= _MAX_CARS) and (s[1] + a <= _MAX_CARS)
 
 
-
 def best_action(s, V):
     """Return pi(s)."""
     max_val = -1e10
@@ -114,15 +111,29 @@ def poisson(k, mu):
     return np.exp(-mu) * (mu**k) / np.math.factorial(k)
 
 
+def poisson_cum(min_k, mu):
+    # TODO: Use the regularized gamma function.
+    p = 0.
+    for i in range(min_k, min_k + 10):
+        p += poisson(i, mu)
+    return p
+
+
 def p_env(s_next, s, a):
     """Given the state at the end of the previous day, calc the probability to
-        have n1_next and n2_next at the end of the current day.
+        have n1_next and n2_next at the end of the current day, and calc the
+        expected reward.
+
+        In the books notation we mean:
+        probability = SUM(r) p(s',r|s,a)
+        expected reward = p(s'|s,a) = SUM(r) p(s',r|s,a) * r
     """
     mu1_rental = 3
     mu2_rental = 4
     mu1_return = 3
     mu2_return = 2
 
+    # DEBUG
     # mu1_rental = 1e-10
     # mu2_rental = 1e-10
     # mu1_return = 1e-10
@@ -146,8 +157,11 @@ def p_env(s_next, s, a):
     assert ((n1_next <= _MAX_CARS) and (n1_next >= 0))
     assert ((n2_next <= _MAX_CARS) and (n2_next >= 0))
 
-    # Justify this decomposition.
-    # TODO
+    # Location 1 and 2 are independent, therefore we can do the following
+    # decomposition:
+    #   SUM (s', r) p(s',r|s,a)[r + g * V(s')] =
+    # = SUM (n1', n2', r1, r2) p(n1',r|s,a) * p(n1',r|s,a) * [r1 + r2 + r(a) +
+    #                                                         g * V(s')]
 
     # Location 1.
     p_n1_next = 0.
@@ -156,9 +170,15 @@ def p_env(s_next, s, a):
         actually_rented = min(rental, n1)
         required_ret = n1_next - n1 + actually_rented
         if required_ret >= 0:
-            p = poisson(rental, mu1_rental) * poisson(required_ret, mu1_return)
+            if n1_next == _MAX_CARS:
+                p = poisson(rental, mu1_rental) * \
+                    poisson_cum(int(required_ret), mu1_return)
+            else:
+                p = poisson(rental, mu1_rental) * \
+                    poisson(required_ret, mu1_return)
+
             p_n1_next += p
-            exp_reward_1 += p * (_RENT_REWARD * actually_rented)
+            exp_reward_1 += p * actually_rented
 
     # Location 2.
     p_n2_next = 0.
@@ -167,12 +187,19 @@ def p_env(s_next, s, a):
         actually_rented = min(rental, n2)
         required_ret = n2_next - n2 + actually_rented
         if required_ret >= 0:
-            p = poisson(rental, mu2_rental) * poisson(required_ret, mu2_return)
+            if n2_next == _MAX_CARS:
+                p = poisson(rental, mu2_rental) * \
+                    poisson_cum(int(required_ret), mu2_return)
+            else:
+                p = poisson(rental, mu2_rental) * \
+                    poisson(required_ret, mu2_return)
+
             p_n2_next += p
-            exp_reward_2 += p * (_RENT_REWARD * actually_rented)
+            exp_reward_2 += p * actually_rented
 
     exp_reward = _MOVE_REWARD * np.abs(a) * p_n1_next * p_n2_next + \
-                 p_n1_next * exp_reward_2 + p_n2_next * exp_reward_1
+                 _RENT_REWARD * p_n1_next * exp_reward_2 + \
+                 _RENT_REWARD * p_n2_next * exp_reward_1
 
     prob = p_n1_next * p_n2_next
     assert prob <= 1.
@@ -196,6 +223,7 @@ def main():
 
     policy_iteration(V, policy)
 
+    # DEBUG
     # tot = 0.
     # for i in range(_MAX_CARS + 1):
     #     for j in range(_MAX_CARS + 1):
