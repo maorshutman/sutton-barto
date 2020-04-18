@@ -1,4 +1,4 @@
-## Jack's car rental Problem
+## Jack's Car Rental Problem
 
 The final policy:
 
