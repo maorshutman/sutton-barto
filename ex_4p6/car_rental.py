@@ -4,6 +4,7 @@ This implementation is naive and quite slow.
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 _GAMMA = 0.9
@@ -25,6 +26,7 @@ def policy_iteration(V, policy):
 
         # DEBUG
         print_policy(policy_new)
+        save_policy(policy_new)
 
         if policy_stable:
             break
@@ -215,6 +217,14 @@ def print_values(V):
 def print_policy(policy):
     print("policy(n1, n2)")
     print(np.flip(policy, axis=0))
+
+
+def save_policy(policy):
+    pi = np.flip(policy, axis=0)
+    fig = plt.figure()
+    plt.imshow(pi)
+    plt.colorbar()
+    fig.savefig("best_policy.png")
 
 
 def main():
